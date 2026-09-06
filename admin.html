@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administración - Gestión de Pedidos Escolar</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --primary: #127944;
+      --primary-dark: #09502b;
+      --bg: #f4f6f8;
+      --card-bg: #ffffff;
+      --text: #333333;
+      --border: #e0e0e0;
+      --danger: #d9534f;
+      --warning: #f0ad4e;
+      --success: #5cb85c;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* PANTALLA LOGIN */
+    #login-screen { display: flex; justify-content: center; align-items: center; flex-grow: 1; padding: 20px; }
+    .login-card { background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 380px; text-align: center; }
+    .app-logo-img { width: 130px; height: 130px; margin-bottom: 15px; }
+    .header-logo-img { width: 42px; height: 42px; }
+    .report-logo-img { width: 65px; height: 65px; }
+
+    .login-card h2 { color: var(--primary); margin-bottom: 5px; font-size: 1.4rem; }
+    .login-card p { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; text-align: left; }
+    .form-group label { display: block; font-size: 0.85rem; margin-bottom: 5px; font-weight: 600; }
+    .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; outline: none; font-size: 0.9rem; }
+
+    /* BOTONES */
+    .btn { padding: 8px 14px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.88rem; transition: background 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background-color: var(--primary); color: white; }
+    .btn-primary:hover { background-color: var(--primary-dark); }
+    .btn-danger { background-color: var(--danger); color: white; }
+    .btn-secondary { background-color: #6c757d; color: white; }
+    .btn-report { background-color: #1e7e34; color: white; }
+
+    /* APP PRINCIPAL */
+    #app-screen { display: none; flex-direction: column; flex-grow: 1; }
+    header { background-color: var(--primary); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .header-logo { display: flex; align-items: center; gap: 12px; }
+
+    nav.tabs-nav { background: white; border-bottom: 1px solid var(--border); display: flex; gap: 10px; padding: 10px 20px 0 20px; overflow-x: auto; }
+    .tab-btn { padding: 10px 18px; background: none; border: none; border-bottom: 3px solid transparent; cursor: pointer; font-weight: 600; color: #666; }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    main { padding: 20px; max-width: 1280px; margin: 0 auto; width: 100%; flex-grow: 1; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .card-header-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+
+    .table-container { width: 100%; overflow-x: auto; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { background-color: #f8f9fa; color: #495057; font-weight: 600; }
+
+    .badge { padding: 4px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: bold; }
+    .badge-pendiente { background-color: #ffeba2; color: #856404; }
+    .badge-pedido { background-color: #b8daff; color: #004085; }
+    .badge-entregado { background-color: #c3e6cb; color: #155724; }
+
+    .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+
+    /* MODAL DE INFORME DASHBOARD */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; padding: 10px; }
+    .modal-content { background: white; border-radius: 8px; max-width: 1100px; width: 100%; max-height: 95vh; display: flex; flex-direction: column; }
+    .modal-header { padding: 12px 20px; background: var(--primary); color: white; display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: 15px; overflow-y: auto; flex-grow: 1; }
+    .modal-footer { padding: 10px 20px; background: #f8f9fa; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+    /* ESTILOS DEL INFORME EN FOLIO HORIZONTAL (DASHBOARD) */
+    .report-paper { font-family: 'Segoe UI', Arial, sans-serif; color: #333; }
+    .report-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-bottom: 12px; }
+    
+    .report-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 10px; }
+    .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    
+    .metric-box { background: #f8f9fa; border: 1px solid #ddd; border-left: 4px solid var(--primary); padding: 8px 12px; border-radius: 4px; }
+    .metric-box h5 { font-size: 0.72rem; color: #666; text-transform: uppercase; margin-bottom: 2px; }
+    .metric-box p { font-size: 1.1rem; font-weight: bold; color: #111; }
+
+    .dash-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: #fff; }
+    .dash-card h4 { font-size: 0.85rem; color: var(--primary); margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 4px; text-transform: uppercase; }
+
+    /* PRINT REGLAS HORIZONTALES */
+    @page { size: A4 landscape; margin: 0.8cm; }
+    @media print {
+      .no-print, header, nav.tabs-nav, .modal-header, .modal-footer { display: none !important; }
+      body { background: white; padding: 0; margin: 0; }
+      .modal-overlay { position: static; background: none; padding: 0; }
+      .modal-content { box-shadow: none; max-width: 100%; width: 100%; border: none; }
+      .modal-body { padding: 0; }
+      .dash-card { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SVG VECTORIAL FIEL AL LOGO ADJUNTADO -->
+  <svg id="logo-svg-src" style="display:none;" viewBox="0 0 500 500">
+    <defs>
+      <linearGradient id="grad-green" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style="stop-color:#38a152;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#09502b;stop-opacity:1" />
+      </linearGradient>
+    </defs>
+    <!-- Círculo Exterior -->
+    <circle cx="250" cy="250" r="235" fill="#ffffff" stroke="url(#grad-green)" stroke-width="12"/>
+    <!-- Cuerpo del Carrito de Compra -->
+    <path d="M 170,325 L 330,325 C 342,325 350,315 355,303 L 385,215 C 388,205 380,195 370,195 L 205,195 C 195,195 188,202 186,210 L 165,305 C 160,325 145,325 135,325 L 120,325" fill="none" stroke="url(#grad-green)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Ruedas -->
+    <circle cx="210" cy="365" r="18" fill="url(#grad-green)"/>
+    <circle cx="305" cy="365" r="18" fill="url(#grad-green)"/>
+    <!-- Hoja / Libro Estilizado Superior -->
+    <path d="M 235,120 C 290,105 345,130 345,130 C 345,130 300,200 240,190 C 205,185 195,150 235,120 Z" fill="url(#grad-green)"/>
+    <!-- Círculo Central con Checkmark -->
+    <circle cx="260" cy="245" r="45" fill="#ffffff" stroke="url(#grad-green)" stroke-width="12"/>
+    <path d="M 238,245 L 252,260 L 285,225" fill="none" stroke="url(#grad-green)" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Textos del Logo -->
+    <text x="250" y="415" font-family="'Montserrat', 'Segoe UI', sans-serif" font-weight="900" font-size="25" fill="#09502b" text-anchor="middle" letter-spacing="1">GESTIÓN DE PEDIDOS</text>
+    <text x="250" y="440" font-family="'Segoe UI', sans-serif" font-weight="600" font-size="16" fill="#09502b" text-anchor="middle" letter-spacing="2">APPLICACIÓN ESCOLAR</text>
+  </svg>
+
+  <!-- PANTALLA LOGIN -->
+  <div id="login-screen">
+    <div class="login-card">
+      <div id="logo-login-container"></div>
+      <h2>Panel Administrador</h2>
+      <p>Gestión de Pedidos Escolar</p>
+      
+      <div class="form-group">
+        <label>Usuario</label>
+        <input type="text" id="login-user" value="admin">
+      </div>
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" id="login-pass">
+      </div>
+      <button class="btn btn-primary" style="width: 100%; justify-content: center;" id="btn-login" onclick="iniciarSesion()">Entrar</button>
+      <p id="login-msg" style="color: var(--danger); margin-top: 10px; font-size: 0.85rem;"></p>
+    </div>
+  </div>
+
+  <!-- PANTALLA PRINCIPAL -->
+  <div id="app-screen">
+    <header>
+      <div class="header-logo">
+        <div id="logo-header-container"></div>
+        <h3 style="margin: 0; font-size: 1.1rem;">Gestión de Pedidos Escolar</h3>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn btn-report no-print" onclick="generarInformeUnicoGlobal()">📊 Informe Ejecutivo (Folio Horizontal)</button>
+        <button class="btn btn-danger no-print" onclick="cerrarSesionApp()">Salir</button>
+      </div>
+    </header>
+
+    <nav class="tabs-nav no-print">
+      <button class="tab-btn active" onclick="switchTab('tab-pedidos', this)">📦 Pedidos</button>
+      <button class="tab-btn" onclick="switchTab('tab-presupuestos', this)">📊 Presupuestos</button>
+      <button class="tab-btn" onclick="switchTab('tab-proveedores', this)">🏬 Proveedores</button>
+      <button class="tab-btn" onclick="switchTab('tab-facturas', this)">🧾 Facturas</button>
+      <button class="tab-btn" onclick="switchTab('tab-folios', this)">📄 Stock Folios</button>
+    </nav>
+
+    <main>
+      <!-- TAB 1: PEDIDOS -->
+      <div id="tab-pedidos" class="tab-content active">
+        <div class="card">
+          <div class="card-header-actions">
+            <h3>Gestión de Pedidos</h3>
+            <div style="display: flex; gap: 10px; align-items: center;" class="no-print">
+              <select id="filter-estado" onchange="renderizarTablaPedidos()">
+                <option value="TODOS">Todos los estados</option>
+                <option value="Pendiente">Pendiente</option>
+                <option value="Pedido">Pedido</option>
+                <option value="Entregado">Entregado</option>
+              </select>
+              <button class="btn btn-secondary" onclick="cargarPedidos()">🔄 Actualizar</button>
+            </div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Fecha</th><th>Profesor</th><th>Ref.</th><th>Producto</th><th>Cant.</th><th>Proveedor</th><th>Observaciones</th><th>Estado</th><th class="no-print">Acción</th></tr>
+              </thead>
+              <tbody id="tbody-pedidos"><tr><td colspan="9">Cargando pedidos...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: PRESUPUESTOS -->
+      <div id="tab-presupuestos" class="tab-content">
+        <div class="card">
+          <h3>Asignación de Presupuestos por Etapa</h3>
+          <div class="grid-form" style="margin-top: 15px;">
+            <div class="form-group"><label>Etapa Educativa</label><input type="text" id="pres-etapa" placeholder="Infantil / Primaria"></div>
+            <div class="form-group"><label>Presupuesto (€)</label><input type="number" id="pres-monto" step="0.01"></div>
+          </div>
+          <button class="btn btn-primary" onclick="guardarNuevoPresupuesto()">Guardar Presupuesto</button>
+        </div>
+        <div class="card">
+          <h3>Resumen Financiero por Etapa</h3>
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Etapa</th><th>Asignado</th><th>Gastado Total</th><th>Disponible</th><th class="no-print">Acción</th></tr></thead>
+              <tbody id="tbody-presupuestos"><tr><td colspan="5">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PROVEEDORES -->
+      <div id="tab-proveedores" class="tab-content">
+        <div class="card">
+          <h3>Nuevo Proveedor</h3>
+          <div class="grid-form" style="margin-top: 15px;">
+            <div class="form-group"><label>Empresa</label><input type="text" id="prov-nombre"></div>
+            <div class="form-group"><label>Contacto</label><input type="text" id="prov-contacto"></div>
+            <div class="form-group"><label>Teléfono</label><input type="text" id="prov-telefono"></div>
+            <div class="form-group"><label>Email</label><input type="email" id="prov-email"></div>
+            <div class="form-group"><label>Web</label><input type="text" id="prov-web"></div>
+            <div class="form-group"><label>Notas</label><input type="text" id="prov-notas"></div>
+          </div>
+          <button class="btn btn-primary" onclick="guardarNuevoProveedor()">Guardar</button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Nombre</th><th>Contacto</th><th>Teléfono</th><th>Email</th><th>Web</th><th>Notas</th><th class="no-print">Acción</th></tr></thead>
+              <tbody id="tbody-proveedores"><tr><td colspan="7">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: FACTURAS -->
+      <div id="tab-facturas" class="tab-content">
+        <div class="card">
+          <h3>Subir Factura</h3>
+          <div class="grid-form" style="margin-top: 15px;">
+            <div class="form-group"><label>Fecha</label><input type="date" id="fact-fecha"></div>
+            <div class="form-group"><label>Proveedor</label><input type="text" id="fact-proveedor"></div>
+            <div class="form-group"><label>Concepto</label><input type="text" id="fact-concepto"></div>
+            <div class="form-group"><label>Importe (€)</label><input type="number" id="fact-importe" step="0.01"></div>
+            <div class="form-group"><label>Etapa Afectada</label><select id="fact-etapa"><option value="">Cargando...</option></select></div>
+            <div class="form-group"><label>Archivo (PDF/Foto)</label><input type="file" id="fact-file" accept="image/*,application/pdf"></div>
+          </div>
+          <button class="btn btn-primary" onclick="subirNuevaFactura()">Guardar Factura</button>
+        </div>
+        <div class="card">
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Fecha</th><th>Proveedor</th><th>Concepto</th><th>Importe</th><th>Etapa</th><th>Doc</th></tr></thead>
+              <tbody id="tbody-facturas"><tr><td colspan="6">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: FOLIOS -->
+      <div id="tab-folios" class="tab-content">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+          <div class="card" style="text-align: center;"><h4>Stock Actual</h4><h1 style="color: var(--primary);" id="val-stock-actual">0</h1></div>
+          <div class="card" style="text-align: center;"><h4>Consumo Total</h4><h1 style="color: var(--danger);" id="val-total-consumido">0</h1></div>
+        </div>
+        <div class="card">
+          <h3>Movimiento de Stock</h3>
+          <div class="grid-form" style="margin-top: 15px;">
+            <div class="form-group"><label>Tipo</label><select id="folio-tipo"><option value="Entrada">Entrada (+)</option><option value="Salida">Consumo (-)</option></select></div>
+            <div class="form-group"><label>Cantidad</label><input type="number" id="folio-cant" value="1"></div>
+            <div class="form-group"><label>Motivo</label><input type="text" id="folio-motivo"></div>
+          </div>
+          <button class="btn btn-primary" onclick="guardarMovimientoFolios()">Registrar</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL INFORME COMPACTO DASHBOARD (A4 LANDSCAPE) -->
+  <div class="modal-overlay" id="modal-informe">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin: 0; font-size: 1rem;">Dashboard Ejecutivo General (Formato Folio Horizontal)</h3>
+        <button onclick="cerrarInforme()" style="background:none; border:none; color:white; font-size:1.2rem; cursor:pointer;">✕</button>
+      </div>
+      <div class="modal-body" id="modal-report-body">
+        <!-- Contenido generado dinámicamente -->
+      </div>
+      <div class="modal-footer no-print">
+        <button class="btn btn-secondary" onclick="cerrarInforme()">Cerrar</button>
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir 1 Folio Horizontal / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let TOKEN_SESION = "";
+    let CACHE_PEDIDOS = [];
+    let CACHE_PRESUPUESTOS = [];
+    let CACHE_FACTURAS = [];
+    let CACHE_FOLIOS = {};
+    let chart1Instance = null;
+    let chart2Instance = null;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const svgSrc = document.getElementById('logo-svg-src').outerHTML;
+      document.getElementById('logo-login-container').innerHTML = svgSrc.replace('id="logo-svg-src"', 'class="app-logo-img"');
+      document.getElementById('logo-header-container').innerHTML = svgSrc.replace('id="logo-svg-src"', 'class="header-logo-img"');
+    });
+
+    function switchTab(tabId, element) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      element.classList.add('active');
+
+      if (tabId === 'tab-pedidos') cargarPedidos();
+      if (tabId === 'tab-presupuestos') cargarPresupuestos();
+      if (tabId === 'tab-proveedores') cargarProveedores();
+      if (tabId === 'tab-facturas') { cargarFacturas(); cargarEtapasEnSelect(); }
+      if (tabId === 'tab-folios') cargarFolios();
+    }
+
+    function iniciarSesion() {
+      const user = document.getElementById('login-user').value.trim();
+      const pass = document.getElementById('login-pass').value.trim();
+      const msg = document.getElementById('login-msg');
+      const btn = document.getElementById('btn-login');
+
+      if (!user || !pass) return msg.innerText = "Introduce datos.";
+      msg.innerText = "Verificando...";
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          if (res && res.status === "success") {
+            TOKEN_SESION = res.token;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('app-screen').style.display = 'flex';
+            cargarPedidos(); cargarPresupuestos(); cargarFacturas(); cargarFolios();
+          } else {
+            msg.innerText = res ? res.message : "Error.";
+          }
+        })
+        .verificarLogin(user, pass);
+    }
+
+    function cerrarSesionApp() {
+      if (TOKEN_SESION) google.script.run.cerrarSesion(TOKEN_SESION);
+      TOKEN_SESION = "";
+      document.getElementById('app-screen').style.display = 'none';
+      document.getElementById('login-screen').style.display = 'flex';
+    }
+
+    function cargarPedidos() {
+      google.script.run.withSuccessHandler(res => {
+        if (!res || !res.registros) return;
+        CACHE_PEDIDOS = res.registros;
+        renderizarTablaPedidos();
+      }).getResumenPedidos(TOKEN_SESION);
+    }
+
+    function renderizarTablaPedidos() {
+      const tbody = document.getElementById('tbody-pedidos');
+      const filtro = document.getElementById('filter-estado').value;
+      let filtrados = filtro === "TODOS" ? CACHE_PEDIDOS : CACHE_PEDIDOS.filter(p => p.estado === filtro);
+
+      if (filtrados.length === 0) return tbody.innerHTML = '<tr><td colspan="9">Sin pedidos.</td></tr>';
+
+      let html = '';
+      filtrados.forEach(p => {
+        let badge = p.estado === "Pedido" ? "badge-pedido" : (p.estado === "Entregado" ? "badge-entregado" : "badge-pendiente");
+        html += `<tr>
+          <td>${p.fecha}</td><td><strong>${p.profesor}</strong></td><td>${p.referencia}</td><td>${p.producto}</td>
+          <td style="text-align:center;">${p.cantidad}</td><td>${p.proveedor}</td><td>${p.observaciones}</td>
+          <td><span class="badge ${badge}">${p.estado}</span></td>
+          <td class="no-print">
+            <select onchange="cambiarEstadoPedido(${p.fila}, this.value)">
+              <option value="Pendiente" ${p.estado === "Pendiente" ? "selected" : ""}>Pendiente</option>
+              <option value="Pedido" ${p.estado === "Pedido" ? "selected" : ""}>Pedido</option>
+              <option value="Entregado" ${p.estado === "Entregado" ? "selected" : ""}>Entregado</option>
+            </select>
+          </td>
+        </tr>`;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function cambiarEstadoPedido(fila, estado) {
+      google.script.run.withSuccessHandler(() => cargarPedidos()).actualizarEstadoPedido(TOKEN_SESION, fila, estado);
+    }
+
+    function cargarPresupuestos() {
+      const tbody = document.getElementById('tbody-presupuestos');
+      google.script.run.withSuccessHandler(lista => {
+        CACHE_PRESUPUESTOS = lista || [];
+        if (CACHE_PRESUPUESTOS.length === 0) return tbody.innerHTML = '<tr><td colspan="5">Sin presupuestos.</td></tr>';
+        
+        let html = '';
+        CACHE_PRESUPUESTOS.forEach(item => {
+          const gastoFacturas = CACHE_FACTURAS
+            .filter(f => f.etapa && f.etapa.toLowerCase() === item.etapa.toLowerCase())
+            .reduce((acc, f) => acc + (f.importe || 0), 0);
+
+          const totalGastado = (item.gastado || 0) + gastoFacturas;
+          const restante = item.presupuesto - totalGastado;
+
+          html += `<tr>
+            <td><strong>${item.etapa}</strong></td>
+            <td>${item.presupuesto.toFixed(2)} €</td>
+            <td style="color: var(--danger); font-weight: 600;">${totalGastado.toFixed(2)} €</td>
+            <td style="color: ${restante < 0 ? 'var(--danger)' : 'var(--primary)'}; font-weight: bold;">${restante.toFixed(2)} €</td>
+            <td class="no-print"><button class="btn btn-danger" onclick="borrarPresupuesto(${item.fila})">Eliminar</button></td>
+          </tr>`;
+        });
+        tbody.innerHTML = html;
+      }).getPresupuestos(TOKEN_SESION);
+    }
+
+    function guardarNuevoPresupuesto() {
+      const etapa = document.getElementById('pres-etapa').value.trim();
+      const presupuesto = Number(document.getElementById('pres-monto').value);
+      if (!etapa || isNaN(presupuesto)) return alert("Completa los campos.");
+      google.script.run.withSuccessHandler(() => {
+        document.getElementById('pres-etapa').value = '';
+        document.getElementById('pres-monto').value = '';
+        cargarPresupuestos();
+      }).guardarPresupuesto(TOKEN_SESION, { etapa: etapa, presupuesto: presupuesto });
+    }
+
+    function borrarPresupuesto(fila) {
+      if (confirm("¿Eliminar?")) google.script.run.withSuccessHandler(() => cargarPresupuestos()).eliminarPresupuesto(TOKEN_SESION, fila);
+    }
+
+    function cargarProveedores() {
+      const tbody = document.getElementById('tbody-proveedores');
+      google.script.run.withSuccessHandler(lista => {
+        if (!lista || lista.length === 0) return tbody.innerHTML = '<tr><td colspan="7">Sin proveedores.</td></tr>';
+        let html = '';
+        lista.forEach(prov => {
+          html += `<tr><td><strong>${prov.nombre}</strong></td><td>${prov.contacto}</td><td>${prov.telefono}</td><td>${prov.email}</td><td>${prov.web}</td><td>${prov.notas}</td><td class="no-print"><button class="btn btn-danger" onclick="borrarProveedor(${prov.fila})">Eliminar</button></td></tr>`;
+        });
+        tbody.innerHTML = html;
+      }).getProveedores(TOKEN_SESION);
+    }
+
+    function guardarNuevoProveedor() {
+      const prov = {
+        nombre: document.getElementById('prov-nombre').value.trim(),
+        contacto: document.getElementById('prov-contacto').value.trim(),
+        telefono: document.getElementById('prov-telefono').value.trim(),
+        email: document.getElementById('prov-email').value.trim(),
+        web: document.getElementById('prov-web').value.trim(),
+        notas: document.getElementById('prov-notas').value.trim()
+      };
+      if (!prov.nombre) return alert("Nombre obligatorio.");
+      google.script.run.withSuccessHandler(() => cargarProveedores()).guardarProveedor(TOKEN_SESION, prov);
+    }
+
+    function borrarProveedor(fila) {
+      if (confirm("¿Eliminar?")) google.script.run.withSuccessHandler(() => cargarProveedores()).eliminarProveedor(TOKEN_SESION, fila);
+    }
+
+    function cargarEtapasEnSelect() {
+      google.script.run.withSuccessHandler(etapas => {
+        const select = document.getElementById('fact-etapa');
+        select.innerHTML = '<option value="">Sin Etapa Asignada</option>';
+        if (Array.isArray(etapas)) etapas.forEach(e => select.innerHTML += `<option value="${e}">${e}</option>`);
+      }).getListaEtapas(TOKEN_SESION);
+    }
+
+    function cargarFacturas() {
+      const tbody = document.getElementById('tbody-facturas');
+      google.script.run.withSuccessHandler(res => {
+        CACHE_FACTURAS = (res && res.registros) ? res.registros : [];
+        if (CACHE_FACTURAS.length === 0) return tbody.innerHTML = '<tr><td colspan="6">Sin facturas.</td></tr>';
+        let html = '';
+        CACHE_FACTURAS.forEach(f => {
+          html += `<tr><td>${f.fecha}</td><td>${f.proveedor}</td><td>${f.concepto}</td><td>${f.importe.toFixed(2)} €</td><td><strong>${f.etapa || 'General'}</strong></td><td><a href="${f.enlace}" target="_blank">Ver</a></td></tr>`;
+        });
+        tbody.innerHTML = html;
+        cargarPresupuestos();
+      }).getFacturas(TOKEN_SESION);
+    }
+
+    function subirNuevaFactura() {
+      const fileInput = document.getElementById('fact-file');
+      if (fileInput.files.length === 0) return alert("Selecciona archivo.");
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const datos = {
+          fecha: document.getElementById('fact-fecha').value,
+          proveedor: document.getElementById('fact-proveedor').value,
+          concepto: document.getElementById('fact-concepto').value,
+          importe: document.getElementById('fact-importe').value,
+          etapa: document.getElementById('fact-etapa').value,
+          nombreArchivo: file.name,
+          tipoMime: file.type,
+          base64: e.target.result
+        };
+        google.script.run.withSuccessHandler(res => {
+          if (res.status === "success") { alert("Factura registrada y descontada."); cargarFacturas(); }
+          else alert("Error: " + res.message);
+        }).subirFactura(TOKEN_SESION, datos);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function cargarFolios() {
+      google.script.run.withSuccessHandler(res => {
+        if (!res) return;
+        CACHE_FOLIOS = res;
+        document.getElementById('val-stock-actual').innerText = res.stockActual || 0;
+        document.getElementById('val-total-consumido').innerText = res.totalConsumido || 0;
+      }).getFolios(TOKEN_SESION);
+    }
+
+    function guardarMovimientoFolios() {
+      const tipo = document.getElementById('folio-tipo').value;
+      const cant = Number(document.getElementById('folio-cant').value);
+      const motivo = document.getElementById('folio-motivo').value;
+      if (isNaN(cant) || cant <= 0) return alert("Cantidad inválida.");
+
+      const datos = { cantidad: cant, motivo: motivo };
+      if (tipo === "Entrada") google.script.run.withSuccessHandler(() => cargarFolios()).registrarEntradaFolios(TOKEN_SESION, datos);
+      else google.script.run.withSuccessHandler(() => cargarFolios()).registrarConsumoFolios(TOKEN_SESION, datos);
+    }
+
+    /* INFORME VISUAL RESUMIDO PARA UN SOLO FOLIO HORIZONTAL */
+    function generarInformeUnicoGlobal() {
+      const modal = document.getElementById('modal-informe');
+      const body = document.getElementById('modal-report-body');
+      const fechaActual = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric' });
+
+      let totalPresupuesto = 0;
+      let totalGastado = 0;
+
+      const labelsEtapas = [];
+      const dataPresupuestos = [];
+      const dataGastados = [];
+
+      CACHE_PRESUPUESTOS.forEach(item => {
+        labelsEtapas.push(item.etapa);
+        dataPresupuestos.push(item.presupuesto);
+
+        const gastoFacturas = CACHE_FACTURAS
+          .filter(f => f.etapa && f.etapa.toLowerCase() === item.etapa.toLowerCase())
+          .reduce((acc, f) => acc + (f.importe || 0), 0);
+
+        const gastadoTotalEtapa = (item.gastado || 0) + gastoFacturas;
+        dataGastados.push(gastadoTotalEtapa);
+
+        totalPresupuesto += item.presupuesto;
+        totalGastado += gastadoTotalEtapa;
+      });
+
+      const totalFacturado = CACHE_FACTURAS.reduce((acc, f) => acc + (f.importe || 0), 0);
+      const pen = CACHE_PEDIDOS.filter(p => p.estado === 'Pendiente').length;
+      const tra = CACHE_PEDIDOS.filter(p => p.estado === 'Pedido').length;
+      const ent = CACHE_PEDIDOS.filter(p => p.estado === 'Entregado').length;
+
+      const svgLogo = document.getElementById('logo-svg-src').outerHTML.replace('id="logo-svg-src"', 'class="report-logo-img"');
+
+      let html = `
+        <div class="report-paper">
+          <!-- CABECERA -->
+          <div class="report-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              ${svgLogo}
+              <div>
+                <h2 style="color: var(--primary); font-size: 1.2rem; margin: 0;">INFORME EJECUTIVO Y ESTADO GENERAL</h2>
+                <p style="color: #666; font-size: 0.8rem; margin: 0;">Resumen Consolidado de Gastos, Pedidos y Stock</p>
+              </div>
+            </div>
+            <div style="text-align: right; font-size: 0.78rem; color: #555;">
+              <p><strong>Fecha:</strong> ${fechaActual}</p>
+              <p>Departamento de Administración</p>
+            </div>
+          </div>
+
+          <!-- MÉTRICAS SUPERIORES -->
+          <div class="metrics-row">
+            <div class="metric-box">
+              <h5>Presupuesto Total</h5>
+              <p>${totalPresupuesto.toFixed(2)} €</p>
+            </div>
+            <div class="metric-box" style="border-left-color: var(--danger);">
+              <h5>Gasto Ejecutado</h5>
+              <p style="color: var(--danger);">${totalGastado.toFixed(2)} €</p>
+            </div>
+            <div class="metric-box" style="border-left-color: #007bff;">
+              <h5>Total Facturas</h5>
+              <p style="color: #007bff;">${totalFacturado.toFixed(2)} €</p>
+            </div>
+            <div class="metric-box" style="border-left-color: var(--success);">
+              <h5>Stock Folios</h5>
+              <p style="color: var(--primary);">${CACHE_FOLIOS.stockActual || 0} Paquetes</p>
+            </div>
+          </div>
+
+          <!-- FILA PRINCIPAL DASHBOARD (2 COLUMNAS) -->
+          <div class="report-grid">
+            <!-- COLUMNA IZQUIERDA: GRÁFICA PRESUPUESTOS VS GASTO -->
+            <div class="dash-card">
+              <h4>Estado Financiero por Etapa</h4>
+              <div style="height: 180px; position: relative;">
+                <canvas id="chartPresupuestos"></canvas>
+              </div>
+            </div>
+
+            <!-- COLUMNA DERECHA: DISTRIBUCIÓN PEDIDOS -->
+            <div class="dash-card">
+              <h4>Estado de Pedidos (${CACHE_PEDIDOS.length})</h4>
+              <div style="height: 180px; position: relative;">
+                <canvas id="chartPedidos"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- TABLA SINTÉTICA RESUMIDA DE ETAPAS -->
+          <div class="dash-card" style="margin-top: 5px;">
+            <h4>Desglose Rápido de Presupuesto</h4>
+            <table style="font-size: 0.8rem;">
+              <thead>
+                <tr>
+                  <th style="padding: 4px 8px;">Etapa Educativa</th>
+                  <th style="padding: 4px 8px;">Presupuesto Asignado</th>
+                  <th style="padding: 4px 8px;">Gasto Realizado</th>
+                  <th style="padding: 4px 8px;">Disponible</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${CACHE_PRESUPUESTOS.map((item, idx) => `
+                  <tr>
+                    <td style="padding: 4px 8px;"><strong>${item.etapa}</strong></td>
+                    <td style="padding: 4px 8px;">${item.presupuesto.toFixed(2)} €</td>
+                    <td style="padding: 4px 8px; color: var(--danger);">${dataGastados[idx].toFixed(2)} €</td>
+                    <td style="padding: 4px 8px; font-weight: bold; color: ${(item.presupuesto - dataGastados[idx]) < 0 ? 'var(--danger)' : 'var(--primary)'}">
+                      ${(item.presupuesto - dataGastados[idx]).toFixed(2)} €
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      body.innerHTML = html;
+      modal.style.display = 'flex';
+
+      // RENDER GRÁFICAS COMPACTAS
+      setTimeout(() => {
+        if (chart1Instance) chart1Instance.destroy();
+        if (chart2Instance) chart2Instance.destroy();
+
+        const ctx1 = document.getElementById('chartPresupuestos').getContext('2d');
+        chart1Instance = new Chart(ctx1, {
+          type: 'bar',
+          data: {
+            labels: labelsEtapas,
+            datasets: [
+              { label: 'Presupuesto (€)', data: dataPresupuestos, backgroundColor: '#127944' },
+              { label: 'Gastado (€)', data: dataGastados, backgroundColor: '#d9534f' }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        const ctx2 = document.getElementById('chartPedidos').getContext('2d');
+        chart2Instance = new Chart(ctx2, {
+          type: 'doughnut',
+          data: {
+            labels: ['Pendientes', 'Tramitación', 'Entregados'],
+            datasets: [{
+              data: [pen, tra, ent],
+              backgroundColor: ['#f0ad4e', '#5bc0de', '#5cb85c']
+            }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }, 150);
+    }
+
+    function cerrarInforme() {
+      document.getElementById('modal-informe').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
