@@ -304,6 +304,31 @@
   </div>
 
   <script>
+    // =====================================================================
+    // CONFIGURACIÓN: URL DEL WEB APP DE APPS SCRIPT
+    // =====================================================================
+    // 1. En el editor de Apps Script: Implementar > Nueva implementación
+    //    > Tipo: Aplicación web > Ejecutar como: Yo > Acceso: Cualquier usuario
+    // 2. Copia la URL que termina en /exec y pégala aquí abajo.
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycby8nbi3NzeC-kgyGhi7UGR4HcidMGZWbccCoZ3qs9r8O9rblvfj8Ebc219lSoThNwSANw/exec";
+
+    // Sustituye a google.script.run: envía {accion, ...params} por POST
+    // y devuelve una Promise con la respuesta ya parseada como JSON.
+    // Se usa Content-Type: text/plain para evitar que el navegador lance
+    // una petición OPTIONS de preflight (Apps Script no la responde).
+    function llamarServidor(accion, params) {
+      const payload = Object.assign({ accion: accion }, params || {});
+      return fetch(WEBAPP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      });
+    }
+
     let TOKEN_SESION = "";
     let CACHE_PEDIDOS = [];
     let CACHE_PRESUPUESTOS = [];
@@ -341,8 +366,8 @@
       msg.innerText = "Verificando...";
       btn.disabled = true;
 
-      google.script.run
-        .withSuccessHandler(res => {
+      llamarServidor('verificarLogin', { usuario: user, pass: pass })
+        .then(res => {
           btn.disabled = false;
           if (res && res.status === "success") {
             TOKEN_SESION = res.token;
@@ -353,22 +378,28 @@
             msg.innerText = res ? res.message : "Error.";
           }
         })
-        .verificarLogin(user, pass);
+        .catch(err => {
+          btn.disabled = false;
+          msg.innerText = "No se pudo conectar con el servidor. Revisa la URL configurada.";
+          console.error(err);
+        });
     }
 
     function cerrarSesionApp() {
-      if (TOKEN_SESION) google.script.run.cerrarSesion(TOKEN_SESION);
+      if (TOKEN_SESION) llamarServidor('cerrarSesion', { token: TOKEN_SESION }).catch(() => {});
       TOKEN_SESION = "";
       document.getElementById('app-screen').style.display = 'none';
       document.getElementById('login-screen').style.display = 'flex';
     }
 
     function cargarPedidos() {
-      google.script.run.withSuccessHandler(res => {
-        if (!res || !res.registros) return;
-        CACHE_PEDIDOS = res.registros;
-        renderizarTablaPedidos();
-      }).getResumenPedidos(TOKEN_SESION);
+      llamarServidor('getResumenPedidos', { token: TOKEN_SESION })
+        .then(res => {
+          if (!res || !res.registros) return;
+          CACHE_PEDIDOS = res.registros;
+          renderizarTablaPedidos();
+        })
+        .catch(err => console.error(err));
     }
 
     function renderizarTablaPedidos() {
@@ -398,61 +429,73 @@
     }
 
     function cambiarEstadoPedido(fila, estado) {
-      google.script.run.withSuccessHandler(() => cargarPedidos()).actualizarEstadoPedido(TOKEN_SESION, fila, estado);
+      llamarServidor('actualizarEstadoPedido', { token: TOKEN_SESION, fila: fila, estado: estado })
+        .then(() => cargarPedidos())
+        .catch(err => console.error(err));
     }
 
     function cargarPresupuestos() {
       const tbody = document.getElementById('tbody-presupuestos');
-      google.script.run.withSuccessHandler(lista => {
-        CACHE_PRESUPUESTOS = lista || [];
-        if (CACHE_PRESUPUESTOS.length === 0) return tbody.innerHTML = '<tr><td colspan="5">Sin presupuestos.</td></tr>';
-        
-        let html = '';
-        CACHE_PRESUPUESTOS.forEach(item => {
-          const gastoFacturas = CACHE_FACTURAS
-            .filter(f => f.etapa && f.etapa.toLowerCase() === item.etapa.toLowerCase())
-            .reduce((acc, f) => acc + (f.importe || 0), 0);
+      llamarServidor('getPresupuestos', { token: TOKEN_SESION })
+        .then(lista => {
+          CACHE_PRESUPUESTOS = lista || [];
+          if (CACHE_PRESUPUESTOS.length === 0) return tbody.innerHTML = '<tr><td colspan="5">Sin presupuestos.</td></tr>';
+          
+          let html = '';
+          CACHE_PRESUPUESTOS.forEach(item => {
+            const gastoFacturas = CACHE_FACTURAS
+              .filter(f => f.etapa && f.etapa.toLowerCase() === item.etapa.toLowerCase())
+              .reduce((acc, f) => acc + (f.importe || 0), 0);
 
-          const totalGastado = (item.gastado || 0) + gastoFacturas;
-          const restante = item.presupuesto - totalGastado;
+            const totalGastado = (item.gastado || 0) + gastoFacturas;
+            const restante = item.presupuesto - totalGastado;
 
-          html += `<tr>
-            <td><strong>${item.etapa}</strong></td>
-            <td>${item.presupuesto.toFixed(2)} €</td>
-            <td style="color: var(--danger); font-weight: 600;">${totalGastado.toFixed(2)} €</td>
-            <td style="color: ${restante < 0 ? 'var(--danger)' : 'var(--primary)'}; font-weight: bold;">${restante.toFixed(2)} €</td>
-            <td class="no-print"><button class="btn btn-danger" onclick="borrarPresupuesto(${item.fila})">Eliminar</button></td>
-          </tr>`;
-        });
-        tbody.innerHTML = html;
-      }).getPresupuestos(TOKEN_SESION);
+            html += `<tr>
+              <td><strong>${item.etapa}</strong></td>
+              <td>${item.presupuesto.toFixed(2)} €</td>
+              <td style="color: var(--danger); font-weight: 600;">${totalGastado.toFixed(2)} €</td>
+              <td style="color: ${restante < 0 ? 'var(--danger)' : 'var(--primary)'}; font-weight: bold;">${restante.toFixed(2)} €</td>
+              <td class="no-print"><button class="btn btn-danger" onclick="borrarPresupuesto(${item.fila})">Eliminar</button></td>
+            </tr>`;
+          });
+          tbody.innerHTML = html;
+        })
+        .catch(err => console.error(err));
     }
 
     function guardarNuevoPresupuesto() {
       const etapa = document.getElementById('pres-etapa').value.trim();
       const presupuesto = Number(document.getElementById('pres-monto').value);
       if (!etapa || isNaN(presupuesto)) return alert("Completa los campos.");
-      google.script.run.withSuccessHandler(() => {
-        document.getElementById('pres-etapa').value = '';
-        document.getElementById('pres-monto').value = '';
-        cargarPresupuestos();
-      }).guardarPresupuesto(TOKEN_SESION, { etapa: etapa, presupuesto: presupuesto });
+      llamarServidor('guardarPresupuesto', { token: TOKEN_SESION, item: { etapa: etapa, presupuesto: presupuesto } })
+        .then(() => {
+          document.getElementById('pres-etapa').value = '';
+          document.getElementById('pres-monto').value = '';
+          cargarPresupuestos();
+        })
+        .catch(err => console.error(err));
     }
 
     function borrarPresupuesto(fila) {
-      if (confirm("¿Eliminar?")) google.script.run.withSuccessHandler(() => cargarPresupuestos()).eliminarPresupuesto(TOKEN_SESION, fila);
+      if (confirm("¿Eliminar?")) {
+        llamarServidor('eliminarPresupuesto', { token: TOKEN_SESION, fila: fila })
+          .then(() => cargarPresupuestos())
+          .catch(err => console.error(err));
+      }
     }
 
     function cargarProveedores() {
       const tbody = document.getElementById('tbody-proveedores');
-      google.script.run.withSuccessHandler(lista => {
-        if (!lista || lista.length === 0) return tbody.innerHTML = '<tr><td colspan="7">Sin proveedores.</td></tr>';
-        let html = '';
-        lista.forEach(prov => {
-          html += `<tr><td><strong>${prov.nombre}</strong></td><td>${prov.contacto}</td><td>${prov.telefono}</td><td>${prov.email}</td><td>${prov.web}</td><td>${prov.notas}</td><td class="no-print"><button class="btn btn-danger" onclick="borrarProveedor(${prov.fila})">Eliminar</button></td></tr>`;
-        });
-        tbody.innerHTML = html;
-      }).getProveedores(TOKEN_SESION);
+      llamarServidor('getProveedores', { token: TOKEN_SESION })
+        .then(lista => {
+          if (!lista || lista.length === 0) return tbody.innerHTML = '<tr><td colspan="7">Sin proveedores.</td></tr>';
+          let html = '';
+          lista.forEach(prov => {
+            html += `<tr><td><strong>${prov.nombre}</strong></td><td>${prov.contacto}</td><td>${prov.telefono}</td><td>${prov.email}</td><td>${prov.web}</td><td>${prov.notas}</td><td class="no-print"><button class="btn btn-danger" onclick="borrarProveedor(${prov.fila})">Eliminar</button></td></tr>`;
+          });
+          tbody.innerHTML = html;
+        })
+        .catch(err => console.error(err));
     }
 
     function guardarNuevoProveedor() {
@@ -465,33 +508,43 @@
         notas: document.getElementById('prov-notas').value.trim()
       };
       if (!prov.nombre) return alert("Nombre obligatorio.");
-      google.script.run.withSuccessHandler(() => cargarProveedores()).guardarProveedor(TOKEN_SESION, prov);
+      llamarServidor('guardarProveedor', { token: TOKEN_SESION, prov: prov })
+        .then(() => cargarProveedores())
+        .catch(err => console.error(err));
     }
 
     function borrarProveedor(fila) {
-      if (confirm("¿Eliminar?")) google.script.run.withSuccessHandler(() => cargarProveedores()).eliminarProveedor(TOKEN_SESION, fila);
+      if (confirm("¿Eliminar?")) {
+        llamarServidor('eliminarProveedor', { token: TOKEN_SESION, fila: fila })
+          .then(() => cargarProveedores())
+          .catch(err => console.error(err));
+      }
     }
 
     function cargarEtapasEnSelect() {
-      google.script.run.withSuccessHandler(etapas => {
-        const select = document.getElementById('fact-etapa');
-        select.innerHTML = '<option value="">Sin Etapa Asignada</option>';
-        if (Array.isArray(etapas)) etapas.forEach(e => select.innerHTML += `<option value="${e}">${e}</option>`);
-      }).getListaEtapas(TOKEN_SESION);
+      llamarServidor('getListaEtapas', { token: TOKEN_SESION })
+        .then(etapas => {
+          const select = document.getElementById('fact-etapa');
+          select.innerHTML = '<option value="">Sin Etapa Asignada</option>';
+          if (Array.isArray(etapas)) etapas.forEach(e => select.innerHTML += `<option value="${e}">${e}</option>`);
+        })
+        .catch(err => console.error(err));
     }
 
     function cargarFacturas() {
       const tbody = document.getElementById('tbody-facturas');
-      google.script.run.withSuccessHandler(res => {
-        CACHE_FACTURAS = (res && res.registros) ? res.registros : [];
-        if (CACHE_FACTURAS.length === 0) return tbody.innerHTML = '<tr><td colspan="6">Sin facturas.</td></tr>';
-        let html = '';
-        CACHE_FACTURAS.forEach(f => {
-          html += `<tr><td>${f.fecha}</td><td>${f.proveedor}</td><td>${f.concepto}</td><td>${f.importe.toFixed(2)} €</td><td><strong>${f.etapa || 'General'}</strong></td><td><a href="${f.enlace}" target="_blank">Ver</a></td></tr>`;
-        });
-        tbody.innerHTML = html;
-        cargarPresupuestos();
-      }).getFacturas(TOKEN_SESION);
+      llamarServidor('getFacturas', { token: TOKEN_SESION })
+        .then(res => {
+          CACHE_FACTURAS = (res && res.registros) ? res.registros : [];
+          if (CACHE_FACTURAS.length === 0) return tbody.innerHTML = '<tr><td colspan="6">Sin facturas.</td></tr>';
+          let html = '';
+          CACHE_FACTURAS.forEach(f => {
+            html += `<tr><td>${f.fecha}</td><td>${f.proveedor}</td><td>${f.concepto}</td><td>${f.importe.toFixed(2)} €</td><td><strong>${f.etapa || 'General'}</strong></td><td><a href="${f.enlace}" target="_blank">Ver</a></td></tr>`;
+          });
+          tbody.innerHTML = html;
+          cargarPresupuestos();
+        })
+        .catch(err => console.error(err));
     }
 
     function subirNuevaFactura() {
@@ -511,21 +564,28 @@
           tipoMime: file.type,
           base64: e.target.result
         };
-        google.script.run.withSuccessHandler(res => {
-          if (res.status === "success") { alert("Factura registrada y descontada."); cargarFacturas(); }
-          else alert("Error: " + res.message);
-        }).subirFactura(TOKEN_SESION, datos);
+        llamarServidor('subirFactura', { token: TOKEN_SESION, datos: datos })
+          .then(res => {
+            if (res.status === "success") { alert("Factura registrada y descontada."); cargarFacturas(); }
+            else alert("Error: " + res.message);
+          })
+          .catch(err => {
+            console.error(err);
+            alert("Error de conexión al subir la factura.");
+          });
       };
       reader.readAsDataURL(file);
     }
 
     function cargarFolios() {
-      google.script.run.withSuccessHandler(res => {
-        if (!res) return;
-        CACHE_FOLIOS = res;
-        document.getElementById('val-stock-actual').innerText = res.stockActual || 0;
-        document.getElementById('val-total-consumido').innerText = res.totalConsumido || 0;
-      }).getFolios(TOKEN_SESION);
+      llamarServidor('getFolios', { token: TOKEN_SESION })
+        .then(res => {
+          if (!res) return;
+          CACHE_FOLIOS = res;
+          document.getElementById('val-stock-actual').innerText = res.stockActual || 0;
+          document.getElementById('val-total-consumido').innerText = res.totalConsumido || 0;
+        })
+        .catch(err => console.error(err));
     }
 
     function guardarMovimientoFolios() {
@@ -535,8 +595,10 @@
       if (isNaN(cant) || cant <= 0) return alert("Cantidad inválida.");
 
       const datos = { cantidad: cant, motivo: motivo };
-      if (tipo === "Entrada") google.script.run.withSuccessHandler(() => cargarFolios()).registrarEntradaFolios(TOKEN_SESION, datos);
-      else google.script.run.withSuccessHandler(() => cargarFolios()).registrarConsumoFolios(TOKEN_SESION, datos);
+      const accion = tipo === "Entrada" ? 'registrarEntradaFolios' : 'registrarConsumoFolios';
+      llamarServidor(accion, { token: TOKEN_SESION, datos: datos })
+        .then(() => cargarFolios())
+        .catch(err => console.error(err));
     }
 
     /* INFORME VISUAL RESUMIDO PARA UN SOLO FOLIO HORIZONTAL */
